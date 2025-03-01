@@ -1,0 +1,63 @@
+/*************************************************************************************************************************************************
+Julia conducted a 15 days of learning SQL contest. The start date of the contest was March 01, 2016 and the end date was March 15, 2016.
+
+Write a query to print total number of unique hackers who made at least 1 submission each day (starting on the first day of the contest), and find the hacker_id and name of the hacker who made maximum number of submissions each day. If more than one such hacker has a maximum number of submissions, print the lowest hacker_id. The query should print this information for each day of the contest, sorted by the date.
+
+Input Format
+
+The following tables hold contest data:
+
+Hackers: The hacker_id is the id of the hacker, and name is the name of the hacker.
+-- +-------------+--------------+
+-- | Column Name | Type         |
+-- +-------------+--------------+
+-- | hacker_id   | string       |
+-- | name        | string       |
+-- +-------------+--------------+
+
+Submissions: The submission_date is the date of the submission, submission_id is the id of the submission, hacker_id is the id of the hacker who made the submission, and score is the score of the submission.
+-- +-----------------+--------------+
+-- | Column Name     | Type         |
+-- +-----------------+--------------+
+-- | submission_date | string       |
+-- | submission_id   | integer      |
+-- | hacker_id       | integer      |
+-- | score           | integer      |
+-- +-----------------+--------------+
+
+*************************************************************************************************************************************************/
+
+-- Solution
+
+WITH grpng AS (
+    SELECT submission_date, hacker_id, COUNT(*) [daily_cnt]
+    FROM Submissions
+    GROUP BY submission_date, hacker_id
+    )
+,clv_sum AS (
+    SELECT *, SUM(1) OVER (PARTITION BY hacker_id ORDER BY submission_date ASC) AS [clv_cnt]
+    FROM grpng
+    )
+,daily_sub AS (
+    SELECT * FROM clv_sum
+    WHERE clv_cnt > DATEDIFF(DAY, (SELECT MIN(submission_date) FROM Submissions), submission_date)
+    )
+,cst AS (
+    SELECT submission_date, COUNT(DISTINCT hacker_id) [cst_h] FROM daily_sub
+    GROUP BY submission_date
+    )
+,max_sub AS (
+    SELECT submission_date, hacker_id, COUNT(submission_id) [max_s]
+          ,ROW_NUMBER() OVER (PARTITION BY submission_date ORDER BY COUNT(submission_id) DESC, hacker_id) [Rnk]
+    FROM Submissions
+    GROUP BY submission_date, hacker_id
+    )
+,rnked AS (
+    SELECT submission_date, hacker_id, max_s
+    FROM max_sub
+    WHERE Rnk = 1
+    )
+SELECT r.submission_date, c.cst_h, h.hacker_id, h.name FROM rnked r
+LEFT JOIN cst c ON r.submission_date = c.submission_date
+LEFT JOIN Hackers h ON r.hacker_id = h.hacker_id
+ORDER BY r.submission_date
